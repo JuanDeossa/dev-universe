@@ -1,0 +1,63 @@
+services:
+  db:
+    container_name: db
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "5050:80"
+
+  backend-dev:
+    container_name: backend-dev
+    restart: unless-stopped
+    build:
+      context: ./backend
+      target: dev
+      args:
+        - PORT:${PORT:-8080}
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+      - "9229:9229"
+    command: sh -c "npx prisma migrate dev && npx prisma db seed && npm run start:docker"
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app
+      - backend_node_modules:/app/node_modules
+
+  frontend-dev:
+    container_name: frontend-dev
+    depends_on:
+      - backend-dev
+    build:
+      context: ./frontend
+      target: dev
+    restart: always
+    stdin_open: true
+    ports:
+      - "5173:5173"
+    environment:
+      - CHOKIDAR_USEPOLLING=true # Necesario para que Vite detecte cambios en Docker
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+
+volumes:
+  db-data:
+  backend_node_modules:
+  frontend_node_modules:
